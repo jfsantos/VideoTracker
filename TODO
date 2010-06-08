@@ -1,0 +1,3 @@
+* Refactor tracker.py to make it more modular (add classes and pretty stuff)
+* Index and track only descriptors inside the TrackedRegion square
+* Update the TrackedRegion square as the user changes values on the "reference" window
