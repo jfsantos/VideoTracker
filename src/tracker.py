@@ -37,33 +37,37 @@ class TrackedRegion():
         self.xpos = xpos
         self.ypos = ypos
         self.size = size
-        
+
+def draw_features(im, k):
+    for x in k:
+        pos = x[0]
+        fsize = x[2]
+        theta = radians(x[3])
+        cv.Circle(im, pos, fsize, 0)
+        cv.Line(im, pos, (pos[0]+round(fsize*cos(theta)),pos[1]+fsize*sin(theta)),0)
 
 def main(argv=None):
     if argv is None:
         argv = sys.argv
     flann = FLANN()
 
-    sample_dir = argv[1]#'/home/jfsantos/Documents/ufsc/2010.1/ProcImagens/samples/'
-    num_samples = 125
+    try:
+        sample_dir = argv[1]#'/home/jfsantos/Documents/ufsc/2010.1/ProcImagens/samples/'
+        start_frame = int(argv[2])
+        end_frame = int(argv[3])
+        hessian_threshold = int(argv[4])
+    except(IndexError):
+        print "Argument error\n Usage: python tracker.py sample_dir start_frame end_frame hessian_threshold"
+        return
 
-    # Loading images
-    #print "Reference image:", 'samples/frame0.jpg'
-    im = cv.LoadImageM(sample_dir + 'samplesframe0.jpg', cv.CV_LOAD_IMAGE_GRAYSCALE)
+    # Loading first frame
+    im = cv.LoadImageM(sample_dir + 'samplesframe' + str(start_frame) + '.jpg', cv.CV_LOAD_IMAGE_GRAYSCALE)
 
     # Extracting SURF descriptors from reference image
-    # and building the index for ANN search
-    (k, d) = cv.ExtractSURF(im, None, cv.CreateMemStorage(), (0, 500, 3, 1))
-    d = array(d, dtype=float)
-    print "shape(d) = ", shape(d)
-    # params = flann.build_index(d, target_precision=0.9)
+    # to make selecting the tracked region easier
+    (k, d) = cv.ExtractSURF(im, None, cv.CreateMemStorage(), (0, hessian_threshold, 3, 1))
 
-    for x in k:
-        pos = x[0]
-        fsize = x[2]
-        theta = x[3]
-        cv.Circle(im, pos, fsize, 0)
-        cv.Line(im, pos, (pos[0]+round(fsize*cos(theta)),pos[1]+fsize*sin(theta)),0)
+    draw_features(im, k)
 
     frames = [im]
 
@@ -71,7 +75,6 @@ def main(argv=None):
     tr = TrackedRegion(im)
 
     cv.NamedWindow("reference")
-    cv.NamedWindow("mask")
     cv.CreateTrackbar('xpos', 'reference', 0, im.width-1, tr.set_x)
     cv.CreateTrackbar('ypos', 'reference', 0, im.height-1, tr.set_y)
     cv.CreateTrackbar('size', 'reference', 0, im.width-1, tr.set_size)
@@ -79,6 +82,7 @@ def main(argv=None):
     # Show position of descriptors on reference image
     cv.ShowImage("reference", im)
 
+    # Selecting tracked region
     while True:
         key_pressed = cv.WaitKey(100)
         if key_pressed == 32:
@@ -94,48 +98,44 @@ def main(argv=None):
             cv.Copy(im, im_copy)
             cv.Rectangle(im_copy, (tr.xpos, tr.ypos), (tr.xpos+tr.size, tr.ypos+tr.size), 0)
             cv.ShowImage("reference", im_copy)
-            cv.ShowImage("mask", tr.get_mask())
 
     print tr
 
     # Extracting descriptors from each target image and
     # calculating the distances to the nearest neighbors
-    for x in range(0,num_samples):
-        print "x: ", x
+    # Tracked region must be updated in each step
+    for x in range(start_frame,end_frame):
         im2 = cv.LoadImageM(sample_dir + 'samplesframe'+str(x)+'.jpg', cv.CV_LOAD_IMAGE_GRAYSCALE)
         # Creating mask for extracting features from new image
         mask = tr.get_mask()
-        print mask
-        (k2, d2) = cv.ExtractSURF(im2, mask, cv.CreateMemStorage(), (0, 500, 3, 1))
-        print "shape(d2): ", shape(d2)
+        (k2, d2) = cv.ExtractSURF(im2, mask, cv.CreateMemStorage(), (0, hessian_threshold, 3, 1))
         d2 = array(d2, dtype=float)
-        if x == 0:
+        result = None
+        dists = None
+        if x == start_frame:
             params = flann.build_index(d2, target_precision=0.9)
         else:
             if len(d2) > 0:
                 result, dists = flann.nn_index(d2, 1, checks=params['checks'])
-                for k in k2:
-                    pos = k[0]
-                    fsize = k[2]
-                    theta = radians(k[3])
-                    cv.Circle(im2, pos, fsize, 0)
-                    cv.Line(im2, pos, (pos[0]+round(fsize*cos(theta)),pos[1]+fsize*sin(theta)),0)
-        frames.append(im2)
+                draw_features(im2, k2)
+            else:
+                print "Frame %d had no features!"
+        frames.append((im2, k2, d2, result, dists))
 
     cv.NamedWindow("target")
 
     esc_pressed = False
     
     while True:
-        for img in frames:
-            cv.ShowImage("target", img)
+        for frame in frames:
+            cv.ShowImage("target", frame[0])
             if cv.WaitKey(100) == 27:
                 esc_pressed = True
                 break
         if esc_pressed:
             cv.DestroyAllWindows()
             break
-    return
+    return frames, params
 
 if __name__ == "__main__":
     main()
