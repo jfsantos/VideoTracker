@@ -3,11 +3,17 @@ import sys
 
 samples_dir = '../../samples'
 
-capture = cv.CaptureFromFile(sys.argv[1])
+file = sys.argv[1]
+frameskip = 1 + int(sys.argv[2])
+capture = cv.CaptureFromFile(file)
+n_frames = cv.GetCaptureProperty(capture, cv.CV_CAP_PROP_FRAME_COUNT)
 
-frameskip = sys.argv[2]
+print("File: %s, frames: %d" % (file, n_frames))
 
-for k in range(cv.GetCaptureProperty(CV_CAP_PROP_FRAME_COUNT):
-    img = cv.QueryFrame(capture)
-    if not (k % frameskip):
-        cv.SaveImage(samples_dir+"frame"+str(k)+".jpg", img)
+for k in range(n_frames):
+    try:
+        img = cv.QueryFrame(capture)
+        if not (k % frameskip):
+            cv.SaveImage(samples_dir+"frame"+str(k)+".jpg", img)
+    except(cv.error):
+        print "End of file reached."
