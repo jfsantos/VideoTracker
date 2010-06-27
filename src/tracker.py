@@ -8,6 +8,7 @@ class TrackedRegion():
     size = 1
     reference = None
 
+    # Setters added so they can be used as callbacks by HighGUI
     def set_x(self, x):
         self.xpos = x
 
@@ -46,32 +47,7 @@ def draw_features(im, k):
         cv.Circle(im, pos, fsize, 0)
         cv.Line(im, pos, (pos[0]+round(fsize*cos(theta)),pos[1]+fsize*sin(theta)),0)
 
-def main(argv=None):
-    if argv is None:
-        argv = sys.argv
-    flann = FLANN()
-
-    try:
-        sample_dir = argv[1]#'/home/jfsantos/Documents/ufsc/2010.1/ProcImagens/samples/'
-        start_frame = int(argv[2])
-        end_frame = int(argv[3])
-        hessian_threshold = int(argv[4])
-    except(IndexError):
-        print "Argument error\n Usage: python tracker.py sample_dir start_frame end_frame hessian_threshold"
-        return
-
-    # Loading first frame
-    im = cv.LoadImageM(sample_dir + 'samplesframe' + str(start_frame) + '.jpg', cv.CV_LOAD_IMAGE_GRAYSCALE)
-
-    # Extracting SURF descriptors from reference image
-    # to make selecting the tracked region easier
-    (k, d) = cv.ExtractSURF(im, None, cv.CreateMemStorage(), (0, hessian_threshold, 3, 1))
-
-    draw_features(im, k)
-
-    frames = [im]
-
-    # Create window and controls
+def get_tracked_region(im):
     tr = TrackedRegion(im)
 
     cv.NamedWindow("reference")
@@ -99,8 +75,38 @@ def main(argv=None):
             cv.Rectangle(im_copy, (tr.xpos, tr.ypos), (tr.xpos+tr.size, tr.ypos+tr.size), 0)
             cv.ShowImage("reference", im_copy)
 
-    print tr
+    return tr
 
+
+
+def main(argv=None):
+    if argv is None:
+        argv = sys.argv
+    flann = FLANN()
+
+    try:
+        sample_dir = argv[1]#'/home/jfsantos/Documents/ufsc/2010.1/ProcImagens/samples/'
+        start_frame = int(argv[2])
+        end_frame = int(argv[3])
+        hessian_threshold = int(argv[4])
+    except(IndexError):
+        print "Argument error\n Usage: python tracker.py sample_dir start_frame end_frame hessian_threshold"
+        return
+
+    # Loading first frame
+    im = cv.LoadImageM(sample_dir + 'samplesframe' + str(start_frame) + '.jpg', cv.CV_LOAD_IMAGE_GRAYSCALE)
+
+    # Extracting SURF descriptors from reference image
+    # to make selecting the tracked region easier
+    (k, d) = cv.ExtractSURF(im, None, cv.CreateMemStorage(), (0, hessian_threshold, 3, 1))
+
+    draw_features(im, k)
+
+    frames = [im]
+
+    # Create window and controls
+    tr = get_tracked_region(im)
+    
     # Extracting descriptors from each target image and
     # calculating the distances to the nearest neighbors
     # Tracked region must be updated in each step
@@ -117,9 +123,13 @@ def main(argv=None):
         else:
             if len(d2) > 0:
                 result, dists = flann.nn_index(d2, 1, checks=params['checks'])
+                neighbors = []
+                for k in range(len(d2)):
+                    neighbors.append((d2[k], result[k], dists[k]))
                 draw_features(im2, k2)
             else:
                 print "Frame %d had no features!"
+        
         frames.append((im2, k2, d2, result, dists))
 
     cv.NamedWindow("target")
