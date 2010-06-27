@@ -47,6 +47,9 @@ def draw_features(im, k):
         cv.Circle(im, pos, fsize, 0)
         cv.Line(im, pos, (pos[0]+round(fsize*cos(theta)),pos[1]+fsize*sin(theta)),0)
 
+def draw_tracked_region(im, tr):
+     cv.Rectangle(im, (tr.xpos, tr.ypos), (tr.xpos+tr.size, tr.ypos+tr.size), 0)
+
 def get_tracked_region(im):
     tr = TrackedRegion(im)
 
@@ -77,7 +80,11 @@ def get_tracked_region(im):
 
     return tr
 
-
+def calc_centroid(keypoints):
+    x = [k[0][0] for k in keypoints]
+    y = [k[0][1] for k in keypoints]
+    n = len(keypoints)
+    return (sum(x)/n, sum(y)/n)
 
 def main(argv=None):
     if argv is None:
@@ -109,7 +116,7 @@ def main(argv=None):
     
     # Extracting descriptors from each target image and
     # calculating the distances to the nearest neighbors
-    # Tracked region must be updated in each step
+    # FIXME - Tracked region must be updated in each step
     for x in range(start_frame,end_frame):
         im2 = cv.LoadImageM(sample_dir + 'samplesframe'+str(x)+'.jpg', cv.CV_LOAD_IMAGE_GRAYSCALE)
         # Creating mask for extracting features from new image
@@ -120,15 +127,36 @@ def main(argv=None):
         dists = None
         if x == start_frame:
             params = flann.build_index(d2, target_precision=0.9)
+            tr.size = 1.05*tr.size
         else:
             if len(d2) > 0:
                 result, dists = flann.nn_index(d2, 1, checks=params['checks'])
+                # Creating full neighbor table
                 neighbors = []
+                nearest_neighbors = []
+                for n in range(len(d2)):
+                    neighbors.append((d2[n], k2[n], result[n], dists[n]))
+                # Removing not-nearest neighbors
                 for k in range(len(d2)):
-                    neighbors.append((d2[k], result[k], dists[k]))
-                draw_features(im2, k2)
+                    k_neighbors = filter(lambda x: x[2] == k, neighbors)
+                    num_neighbors = len(k_neighbors)
+                    if num_neighbors >= 1:
+                        if num_neighbors > 1:
+                            nearest = reduce(lambda x,y: x if x[3] < y[3] else y, k_neighbors)
+                        else:
+                            nearest = k_neighbors[0]
+                        nearest_neighbors.append(nearest)
+                nearest_keypoints =  [kp[1] for kp in nearest_neighbors]
+                if len(nearest_keypoints) > 0:
+                    centroid = calc_centroid(nearest_keypoints)
+                    print "centroid: ", centroid
+                    tr.xpos = centroid[0] - tr.size/2
+                    tr.ypos = centroid[1] - tr.size/2
+                draw_features(im2, nearest_keypoints)
+                draw_tracked_region(im2, tr)
+                print "Frame %d had %d feature(s)!" % (x, len(d2))
             else:
-                print "Frame %d had no features!"
+                print "Frame %d had no features!" % x
         
         frames.append((im2, k2, d2, result, dists))
 
