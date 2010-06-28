@@ -48,7 +48,7 @@ def draw_features(im, k):
         cv.Line(im, pos, (pos[0]+round(fsize*cos(theta)),pos[1]+fsize*sin(theta)),0)
 
 def draw_tracked_region(im, tr):
-     cv.Rectangle(im, (tr.xpos, tr.ypos), (tr.xpos+tr.size, tr.ypos+tr.size), 0)
+     cv.Rectangle(im, (tr.xpos, tr.ypos), (tr.xpos+tr.size, tr.ypos+tr.size), 255, thickness=3)
 
 def get_tracked_region(im):
     tr = TrackedRegion(im)
@@ -65,7 +65,7 @@ def get_tracked_region(im):
     while True:
         key_pressed = cv.WaitKey(100)
         if key_pressed == 32:
-            cv.Rectangle(im, (tr.xpos, tr.ypos), (tr.xpos+tr.size, tr.ypos+tr.size), 0)
+            cv.Rectangle(im, (tr.xpos, tr.ypos), (tr.xpos+tr.size, tr.ypos+tr.size), 255, thickness=3)
             cv.DestroyWindow("reference")
             break
         elif key_pressed == 27:
@@ -75,7 +75,7 @@ def get_tracked_region(im):
         else:
             im_copy = cv.CreateMat(im.height, im.width, cv.CV_8UC1)
             cv.Copy(im, im_copy)
-            cv.Rectangle(im_copy, (tr.xpos, tr.ypos), (tr.xpos+tr.size, tr.ypos+tr.size), 0)
+            cv.Rectangle(im_copy, (tr.xpos, tr.ypos), (tr.xpos+tr.size, tr.ypos+tr.size), 255, thickness=3)
             cv.ShowImage("reference", im_copy)
 
     return tr
@@ -92,16 +92,17 @@ def main(argv=None):
     flann = FLANN()
 
     try:
-        sample_dir = argv[1]#'/home/jfsantos/Documents/ufsc/2010.1/ProcImagens/samples/'
-        start_frame = int(argv[2])
-        end_frame = int(argv[3])
-        hessian_threshold = int(argv[4])
+        sample_dir = argv[1]
+        sample_name = argv[2]
+        start_frame = int(argv[3])
+        end_frame = int(argv[4])
+        hessian_threshold = int(argv[5])
     except(IndexError):
-        print "Argument error\n Usage: python tracker.py sample_dir start_frame end_frame hessian_threshold"
+        print "Argument error\n Usage: python tracker.py sample_dir sample_filename start_frame end_frame hessian_threshold"
         return
 
     # Loading first frame
-    im = cv.LoadImageM(sample_dir + 'samplesframe' + str(start_frame) + '.jpg', cv.CV_LOAD_IMAGE_GRAYSCALE)
+    im = cv.LoadImageM(sample_dir + sample_name + str(start_frame) + '.jpg', cv.CV_LOAD_IMAGE_GRAYSCALE)
 
     # Extracting SURF descriptors from reference image
     # to make selecting the tracked region easier
@@ -116,12 +117,13 @@ def main(argv=None):
     
     # Extracting descriptors from each target image and
     # calculating the distances to the nearest neighbors
-    # FIXME - Tracked region must be updated in each step
+    # Tracked region must be updated in each step
     for x in range(start_frame,end_frame):
-        im2 = cv.LoadImageM(sample_dir + 'samplesframe'+str(x)+'.jpg', cv.CV_LOAD_IMAGE_GRAYSCALE)
+        im2 = cv.LoadImageM(sample_dir + sample_name +str(x)+'.jpg', cv.CV_LOAD_IMAGE_GRAYSCALE)
         # Creating mask for extracting features from new image
         mask = tr.get_mask()
         (k2, d2) = cv.ExtractSURF(im2, mask, cv.CreateMemStorage(), (0, hessian_threshold, 3, 1))
+        #(k2, d2) = cv.ExtractSURF(im2, None, cv.CreateMemStorage(), (0, hessian_threshold, 3, 1))
         d2 = array(d2, dtype=float)
         result = None
         dists = None
@@ -149,10 +151,10 @@ def main(argv=None):
                 nearest_keypoints =  [kp[1] for kp in nearest_neighbors]
                 if len(nearest_keypoints) > 0:
                     centroid = calc_centroid(nearest_keypoints)
-                    print "centroid: ", centroid
+                    # print "centroid: ", centroid
                     tr.xpos = centroid[0] - tr.size/2
                     tr.ypos = centroid[1] - tr.size/2
-                draw_features(im2, nearest_keypoints)
+                #draw_features(im2, nearest_keypoints)
                 draw_tracked_region(im2, tr)
                 print "Frame %d had %d feature(s)!" % (x, len(d2))
             else:
@@ -167,7 +169,7 @@ def main(argv=None):
     while True:
         for frame in frames:
             cv.ShowImage("target", frame[0])
-            if cv.WaitKey(100) == 27:
+            if cv.WaitKey(50) == 27:
                 esc_pressed = True
                 break
         if esc_pressed:
