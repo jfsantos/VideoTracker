@@ -24,7 +24,7 @@ class TrackedRegion():
     def get_mask(self):
         width = self.reference.width
         height = self.reference.height
-        mask = zeros([height, width], dtype=int)
+        mask = zeros([height, width], dtype=int32)
         cvmask = cv.CreateMat(height, width, cv.CV_8UC1)
         mask[self.ypos:self.ypos+self.size,self.xpos:self.xpos+self.size] = 255
         cv.Convert(mask, cvmask)
@@ -124,12 +124,12 @@ def main(argv=None):
         mask = tr.get_mask()
         (k2, d2) = cv.ExtractSURF(im2, mask, cv.CreateMemStorage(), (0, hessian_threshold, 3, 1))
         #(k2, d2) = cv.ExtractSURF(im2, None, cv.CreateMemStorage(), (0, hessian_threshold, 3, 1))
-        d2 = array(d2, dtype=float)
+        d2 = array(d2, dtype=float32)
         result = None
         dists = None
         if x == start_frame:
             params = flann.build_index(d2, target_precision=0.9)
-            tr.size = 1.05*tr.size
+            tr.size = 1.1*tr.size
         else:
             if len(d2) > 0:
                 result, dists = flann.nn_index(d2, 1, checks=params['checks'])
@@ -156,9 +156,10 @@ def main(argv=None):
                     tr.ypos = centroid[1] - tr.size/2
                 #draw_features(im2, nearest_keypoints)
                 draw_tracked_region(im2, tr)
-                print "Frame %d had %d feature(s)!" % (x, len(d2))
+                #print "Frame %d had %d feature(s)!" % (x, len(d2))
             else:
-                print "Frame %d had no features!" % x
+                #print "Frame %d had no features!" % x
+                pass
         
         frames.append((im2, k2, d2, result, dists))
 
